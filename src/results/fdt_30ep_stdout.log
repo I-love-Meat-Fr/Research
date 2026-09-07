@@ -1,0 +1,201 @@
+[Setup] Device: cuda
+[Setup] Model: fdt
+[Setup] Epochs: 30, Batch size: 8, LR: 0.0005
+
+[Phase 1] Loading datasets...
+  [Dataset] FV-USM root: d:/WorkSpace/Research/Research/MFFV/data/external\Published_database_FV-USM_Dec2013
+[FVUSM] train: 2064 samples | 344 unique IDs
+[FVUSM] val: 438 samples | 73 unique IDs
+[FVUSM] test: 450 samples | 75 unique IDs
+
+[Phase 1] Building pair datasets for verification...
+[FVUSM] val: 438 samples | 73 unique IDs
+[FVUSM] test: 450 samples | 75 unique IDs
+  [Eval] pairs=2000, batch_size=4
+
+[Phase 3] Building model...
+  Number of classes: 344
+  Model: ClassificationModel
+  Parameters: 5,488,016
+
+[Phase 4] Setting up training...
+  Loss: CrossEntropyLoss
+
+[Phase 5] Training...
+
+[Epoch 1/30]
+  Train Loss: 5.8476
+  Val EER: 0.2770 | HTER: 0.2770 | AUC: 0.8315
+  Time: 80.3s
+  [BEST] Saved best model (EER=0.2770)
+
+[Epoch 2/30]
+  Train Loss: 5.8115
+  Val EER: 0.2750 | HTER: 0.2775 | AUC: 0.7967
+  Time: 79.1s
+  [BEST] Saved best model (EER=0.2750)
+
+[Epoch 3/30]
+  Train Loss: 5.7800
+  Val EER: 0.2660 | HTER: 0.2655 | AUC: 0.7779
+  Time: 75.1s
+  [BEST] Saved best model (EER=0.2660)
+
+[Epoch 4/30]
+  Train Loss: 5.7483
+  Val EER: 0.2420 | HTER: 0.2405 | AUC: 0.8337
+  Time: 74.5s
+  [BEST] Saved best model (EER=0.2420)
+
+[Epoch 5/30]
+  Train Loss: 5.7550
+  Val EER: 0.1940 | HTER: 0.1895 | AUC: 0.8444
+  Time: 36.5s
+  [BEST] Saved best model (EER=0.1940)
+
+[Epoch 6/30]
+  Train Loss: 5.7241
+  Val EER: 0.2390 | HTER: 0.2330 | AUC: 0.8153
+  Time: 103.6s
+
+[Epoch 7/30]
+  Train Loss: 5.7066
+  Val EER: 0.2410 | HTER: 0.2400 | AUC: 0.8000
+  Time: 104.6s
+
+[Epoch 8/30]
+  Train Loss: 5.6959
+  Val EER: 0.2550 | HTER: 0.2525 | AUC: 0.7926
+  Time: 24.0s
+
+[Epoch 9/30]
+  Train Loss: 5.6979
+  Val EER: 0.2360 | HTER: 0.2350 | AUC: 0.8171
+  Time: 22.6s
+
+[Epoch 10/30]
+  Train Loss: 5.7019
+  Val EER: 0.2400 | HTER: 0.2420 | AUC: 0.8393
+  Time: 22.8s
+
+[Epoch 11/30]
+  Train Loss: 5.6875
+  Val EER: 0.1860 | HTER: 0.1880 | AUC: 0.8820
+  Time: 23.2s
+  [BEST] Saved best model (EER=0.1860)
+
+[Epoch 12/30]
+  Train Loss: 5.6877
+  Val EER: 0.2010 | HTER: 0.2010 | AUC: 0.8569
+  Time: 32.5s
+
+[Epoch 13/30]
+  Train Loss: 5.6467
+  Val EER: 0.2350 | HTER: 0.2350 | AUC: 0.8537
+  Time: 27.7s
+
+[Epoch 14/30]
+  Train Loss: 5.6252
+  Val EER: 0.2110 | HTER: 0.2105 | AUC: 0.8642
+  Time: 22.2s
+
+[Epoch 15/30]
+  Train Loss: 5.6192
+  Val EER: 0.1980 | HTER: 0.1980 | AUC: 0.8871
+  Time: 22.4s
+
+[Epoch 16/30]
+  Train Loss: 5.6044
+  Val EER: 0.2000 | HTER: 0.2000 | AUC: 0.8694
+  Time: 22.9s
+
+[Epoch 17/30]
+  Train Loss: 5.5875
+  Val EER: 0.1910 | HTER: 0.1910 | AUC: 0.8770
+  Time: 22.3s
+
+[Epoch 18/30]
+  Train Loss: 5.5860
+  Val EER: 0.1960 | HTER: 0.1950 | AUC: 0.8614
+  Time: 21.6s
+
+[Epoch 19/30]
+  Train Loss: 5.5662
+  Val EER: 0.1790 | HTER: 0.1785 | AUC: 0.8959
+  Time: 20.8s
+  [BEST] Saved best model (EER=0.1790)
+
+[Epoch 20/30]
+  Train Loss: 5.5687
+  Val EER: 0.1850 | HTER: 0.1850 | AUC: 0.8928
+  Time: 21.0s
+
+[Epoch 21/30]
+  Train Loss: 5.5636
+  Val EER: 0.1950 | HTER: 0.1950 | AUC: 0.8838
+  Time: 21.0s
+
+[Epoch 22/30]
+  Train Loss: 5.5480
+  Val EER: 0.1900 | HTER: 0.1900 | AUC: 0.8926
+  Time: 20.9s
+
+[Epoch 23/30]
+  Train Loss: 5.5410
+  Val EER: 0.1820 | HTER: 0.1820 | AUC: 0.8959
+  Time: 20.9s
+
+[Epoch 24/30]
+  Train Loss: 5.5229
+  Val EER: 0.1730 | HTER: 0.1730 | AUC: 0.9037
+  Time: 21.0s
+  [BEST] Saved best model (EER=0.1730)
+
+[Epoch 25/30]
+  Train Loss: 5.5244
+  Val EER: 0.1760 | HTER: 0.1760 | AUC: 0.9018
+  Time: 20.8s
+
+[Epoch 26/30]
+  Train Loss: 5.5171
+  Val EER: 0.1660 | HTER: 0.1660 | AUC: 0.9061
+  Time: 21.0s
+  [BEST] Saved best model (EER=0.1660)
+
+[Epoch 27/30]
+  Train Loss: 5.5227
+  Val EER: 0.1630 | HTER: 0.1630 | AUC: 0.9113
+  Time: 21.4s
+  [BEST] Saved best model (EER=0.1630)
+
+[Epoch 28/30]
+  Train Loss: 5.5260
+  Val EER: 0.1570 | HTER: 0.1565 | AUC: 0.9123
+  Time: 20.9s
+  [BEST] Saved best model (EER=0.1570)
+
+[Epoch 29/30]
+  Train Loss: 5.5186
+  Val EER: 0.1700 | HTER: 0.1700 | AUC: 0.9109
+  Time: 21.0s
+
+[Epoch 30/30]
+  Train Loss: 5.5176
+  Val EER: 0.1650 | HTER: 0.1650 | AUC: 0.9103
+  Time: 20.7s
+
+[Phase 6] Final test on test set...
+  Loading best model from epoch 28 (EER=0.1570)
+
+[FINAL RESULTS] fdt
+  Best Val EER: 0.1570 (epoch 28)
+  Test EER:     0.1740
+  Test HTER:    0.1740
+  Test AUC:     0.9107
+  Threshold:    0.9429
+  Pairs:        2000
+
+[Phase 7] Saving results to results\fdt_30ep\fdt...
+  Saved results to results\fdt_30ep\fdt\results.json
+
+[OK] Training complete!

@@ -1,0 +1,106 @@
+{
+  "model": "fdt",
+  "epochs": 30,
+  "batch_size": 8,
+  "lr": 0.001,
+  "num_params": 5488016,
+  "best_epoch": 3,
+  "best_val_eer": 0.152,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 5.8546635808870775,
+      "val_eer": 0.16,
+      "val_hter": 0.16,
+      "val_auc": 0.9201039999999999,
+      "time_sec": 151.65136671066284
+    },
+    {
+      "epoch": 2,
+      "train_loss": 5.85482952576275,
+      "val_eer": 0.22,
+      "val_hter": 0.22,
+      "val_auc": 0.877,
+      "time_sec": 118.97289323806763
+    },
+    {
+      "epoch": 3,
+      "train_loss": 5.853237231572469,
+      "val_eer": 0.152,
+      "val_hter": 0.152,
+      "val_auc": 0.925472,
+      "time_sec": 117.95631432533264
+    },
+    {
+      "epoch": 4,
+      "train_loss": 5.8607408261114315,
+      "val_eer": 0.348,
+      "val_hter": 0.348,
+      "val_auc": 0.74152,
+      "time_sec": 143.35376977920532
+    },
+    {
+      "epoch": 5,
+      "train_loss": 5.852543599845827,
+      "val_eer": 0.244,
+      "val_hter": 0.21000000000000002,
+      "val_auc": 0.82084,
+      "time_sec": 142.65261340141296
+    },
+    {
+      "epoch": 6,
+      "train_loss": 5.8641901792481885,
+      "val_eer": 0.284,
+      "val_hter": 0.28200000000000003,
+      "val_auc": 0.795136,
+      "time_sec": 141.7626874446869
+    },
+    {
+      "epoch": 7,
+      "train_loss": 5.8569238555523775,
+      "val_eer": 0.168,
+      "val_hter": 0.176,
+      "val_auc": 0.8610720000000001,
+      "time_sec": 143.46843457221985
+    },
+    {
+      "epoch": 8,
+      "train_loss": 5.843190782753996,
+      "val_eer": 0.304,
+      "val_hter": 0.304,
+      "val_auc": 0.7968879999999999,
+      "time_sec": 141.0458312034607
+    },
+    {
+      "epoch": 9,
+      "train_loss": 5.821084005888118,
+      "val_eer": 0.228,
+      "val_hter": 0.228,
+      "val_auc": 0.8544160000000001,
+      "time_sec": 143.52515506744385
+    },
+    {
+      "epoch": 10,
+      "train_loss": 5.762793378312458,
+      "val_eer": 0.196,
+      "val_hter": 0.194,
+      "val_auc": 0.89612,
+      "time_sec": 142.61858916282654
+    },
+    {
+      "epoch": 11,
+      "train_loss": 5.739510161008021,
+      "val_eer": 0.2,
+      "val_hter": 0.2,
+      "val_auc": 0.886264,
+      "time_sec": 144.28197693824768
+    }
+  ],
+  "final_test": {
+    "eer": 0.16,
+    "hter": 0.16,
+    "auc": 0.8893599999999999,
+    "threshold": 0.9998638033866882,
+    "num_pairs": 500
+  }
+}

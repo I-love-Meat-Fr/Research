@@ -1,0 +1,98 @@
+{
+  "model": "ilcnn",
+  "epochs": 10,
+  "batch_size": 16,
+  "lr": 0.001,
+  "num_params": 2954867,
+  "best_epoch": 7,
+  "best_val_eer": 0.104,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 5.8177014432212175,
+      "val_eer": 0.14,
+      "val_hter": 0.14,
+      "val_auc": 0.94648,
+      "time_sec": 107.8066930770874
+    },
+    {
+      "epoch": 2,
+      "train_loss": 5.714671319769335,
+      "val_eer": 0.156,
+      "val_hter": 0.156,
+      "val_auc": 0.939904,
+      "time_sec": 102.90969753265381
+    },
+    {
+      "epoch": 3,
+      "train_loss": 5.589721494866896,
+      "val_eer": 0.136,
+      "val_hter": 0.136,
+      "val_auc": 0.9514079999999999,
+      "time_sec": 104.1859724521637
+    },
+    {
+      "epoch": 4,
+      "train_loss": 5.476957450541415,
+      "val_eer": 0.144,
+      "val_hter": 0.144,
+      "val_auc": 0.94384,
+      "time_sec": 101.39589405059814
+    },
+    {
+      "epoch": 5,
+      "train_loss": 5.378855572190395,
+      "val_eer": 0.16,
+      "val_hter": 0.16,
+      "val_auc": 0.9498399999999999,
+      "time_sec": 101.19765329360962
+    },
+    {
+      "epoch": 6,
+      "train_loss": 5.301750323569128,
+      "val_eer": 0.14,
+      "val_hter": 0.14,
+      "val_auc": 0.93816,
+      "time_sec": 102.2484359741211
+    },
+    {
+      "epoch": 7,
+      "train_loss": 5.23883974090103,
+      "val_eer": 0.104,
+      "val_hter": 0.104,
+      "val_auc": 0.96128,
+      "time_sec": 102.20075607299805
+    },
+    {
+      "epoch": 8,
+      "train_loss": 5.205147096352984,
+      "val_eer": 0.136,
+      "val_hter": 0.136,
+      "val_auc": 0.9472320000000001,
+      "time_sec": 102.2440230846405
+    },
+    {
+      "epoch": 9,
+      "train_loss": 5.168656822322875,
+      "val_eer": 0.12,
+      "val_hter": 0.12,
+      "val_auc": 0.958696,
+      "time_sec": 102.51854467391968
+    },
+    {
+      "epoch": 10,
+      "train_loss": 5.158367789068888,
+      "val_eer": 0.14,
+      "val_hter": 0.14,
+      "val_auc": 0.9474319999999999,
+      "time_sec": 102.30840182304382
+    }
+  ],
+  "final_test": {
+    "eer": 0.112,
+    "hter": 0.114,
+    "auc": 0.9543600000000001,
+    "threshold": 0.9999945163726807,
+    "num_pairs": 500
+  }
+}

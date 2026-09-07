@@ -1,0 +1,86 @@
+======================================================================
+RESNET18 + ArcFace FINGER VEIN BASELINE
+======================================================================
+Device: cuda
+Epochs: 5, Batch size: 32, LR: 0.001
+ArcFace: True (margin=0.5, scale=30.0)
+Session: 1st, Image size: 112
+Strong augment: False
+======================================================================
+
+[1] Loading datasets...
+[FVUSM] train: 2064 samples | 344 unique IDs
+[FVUSM] val: 438 samples | 73 unique IDs
+[FVUSM] test: 450 samples | 75 unique IDs
+  Classes: 344
+  Train samples: 2064
+  Val samples: 438
+  Test samples: 450
+
+[2] Building pair datasets...
+[FVUSM] val: 438 samples | 73 unique IDs
+[FVUSM] test: 450 samples | 75 unique IDs
+  Val pairs: 5000
+  Test pairs: 5000
+
+[3] Building model...
+  Parameters: 11,280,280
+
+[4] Setting up training...
+  Loss: ArcFaceLoss (margin=0.5, scale=30.0)
+
+[5] Training...
+
+--- Epoch 1/5 ---
+  Train Loss: 21.2122 | Acc: 0.0%
+  Val EER: 12.08% | HTER: 12.06% | AUC: 0.9490
+  Val Cls Acc: 0.0%
+  Time: 71.5s
+  [BEST] Saved best model (EER: 12.08%)
+
+--- Epoch 2/5 ---
+  Train Loss: 20.5198 | Acc: 0.0%
+  Val EER: 8.36% | HTER: 8.36% | AUC: 0.9745
+  Val Cls Acc: 0.0%
+  Time: 27.8s
+  [BEST] Saved best model (EER: 8.36%)
+
+--- Epoch 3/5 ---
+  Train Loss: 20.0947 | Acc: 0.0%
+  Val EER: 6.84% | HTER: 6.84% | AUC: 0.9820
+  Val Cls Acc: 0.0%
+  Time: 54.7s
+  [BEST] Saved best model (EER: 6.84%)
+
+--- Epoch 4/5 ---
+  Train Loss: 19.6505 | Acc: 0.0%
+  Val EER: 6.60% | HTER: 6.60% | AUC: 0.9837
+  Val Cls Acc: 0.0%
+  Time: 58.0s
+  [BEST] Saved best model (EER: 6.60%)
+
+--- Epoch 5/5 ---
+  Train Loss: 19.1091 | Acc: 0.0%
+  Val EER: 4.92% | HTER: 4.92% | AUC: 0.9899
+  Val Cls Acc: 0.0%
+  Time: 27.4s
+  [BEST] Saved best model (EER: 4.92%)
+
+[6] Final test on test set...
+  Loaded best model (from epoch 5)
+
+======================================================================
+FINAL RESULTS
+======================================================================
+Model: ResNet18 + ArcFace=True
+Dataset: FV-USM Session 1st
+Test EER:  6.00%
+Test HTER: 6.00%
+Test AUC:  0.9866
+Test Cls Acc: 0.0%
+Threshold: 0.8914
+Pairs: 5000
+======================================================================
+
+[7] Saving results...
+  Saved results to results\resnet18_quick_infer\results.json

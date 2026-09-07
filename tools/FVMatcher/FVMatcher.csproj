@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>FVMatcher</RootNamespace>
+    <AssemblyName>FVMatcher</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Platforms>x86</Platforms>
+  </PropertyGroup>
+</Project>

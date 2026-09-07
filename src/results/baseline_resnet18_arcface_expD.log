@@ -1,0 +1,363 @@
+======================================================================
+RESNET18 + ArcFace FINGER VEIN BASELINE
+======================================================================
+Device: cuda
+Epochs: 50, Batch size: 16, LR: 0.0005
+ArcFace: True (margin=0.3, scale=64.0)
+Session: 1st, Image size: 224
+Strong augment: True
+======================================================================
+
+[1] Loading datasets...
+[FVUSM] train: 2064 samples | 344 unique IDs
+[FVUSM] val: 438 samples | 73 unique IDs
+[FVUSM] test: 450 samples | 75 unique IDs
+  Classes: 344
+  Train samples: 2064
+  Val samples: 438
+  Test samples: 450
+
+[2] Building pair datasets...
+[FVUSM] val: 438 samples | 73 unique IDs
+[FVUSM] test: 450 samples | 75 unique IDs
+  Val pairs: 3000
+  Test pairs: 3000
+
+[3] Building model...
+  Parameters: 11,280,280
+
+[4] Setting up training...
+  Loss: ArcFaceLoss (margin=0.3, scale=64.0)
+
+[5] Training...
+
+--- Epoch 1/50 ---
+  Train Loss: 27.6157 | Acc: 0.0%
+  Val EER: 10.40% | HTER: 10.40% | AUC: 0.9621
+  Val Cls Acc: 0.0%
+  Time: 43.2s
+  [BEST] Saved best model (EER: 10.40%)
+
+--- Epoch 2/50 ---
+  Train Loss: 26.0995 | Acc: 0.0%
+  Val EER: 8.00% | HTER: 8.00% | AUC: 0.9715
+  Val Cls Acc: 0.0%
+  Time: 67.7s
+  [BEST] Saved best model (EER: 8.00%)
+
+--- Epoch 3/50 ---
+  Train Loss: 25.1781 | Acc: 0.0%
+  Val EER: 6.73% | HTER: 6.67% | AUC: 0.9767
+  Val Cls Acc: 0.0%
+  Time: 63.7s
+  [BEST] Saved best model (EER: 6.73%)
+
+--- Epoch 4/50 ---
+  Train Loss: 24.0147 | Acc: 0.0%
+  Val EER: 5.53% | HTER: 5.50% | AUC: 0.9855
+  Val Cls Acc: 0.0%
+  Time: 64.1s
+  [BEST] Saved best model (EER: 5.53%)
+
+--- Epoch 5/50 ---
+  Train Loss: 22.1978 | Acc: 0.0%
+  Val EER: 3.47% | HTER: 3.30% | AUC: 0.9913
+  Val Cls Acc: 0.0%
+  Time: 64.3s
+  [BEST] Saved best model (EER: 3.47%)
+
+--- Epoch 6/50 ---
+  Train Loss: 19.5335 | Acc: 0.0%
+  Val EER: 2.87% | HTER: 2.87% | AUC: 0.9880
+  Val Cls Acc: 0.0%
+  Time: 64.1s
+  [BEST] Saved best model (EER: 2.87%)
+
+--- Epoch 7/50 ---
+  Train Loss: 15.0324 | Acc: 1.9%
+  Val EER: 3.80% | HTER: 3.77% | AUC: 0.9917
+  Val Cls Acc: 0.0%
+  Time: 56.8s
+
+--- Epoch 8/50 ---
+  Train Loss: 10.1321 | Acc: 9.3%
+  Val EER: 2.33% | HTER: 2.33% | AUC: 0.9933
+  Val Cls Acc: 0.0%
+  Time: 58.3s
+  [BEST] Saved best model (EER: 2.33%)
+
+--- Epoch 9/50 ---
+  Train Loss: 6.4344 | Acc: 22.4%
+  Val EER: 1.93% | HTER: 1.93% | AUC: 0.9955
+  Val Cls Acc: 0.0%
+  Time: 73.2s
+  [BEST] Saved best model (EER: 1.93%)
+
+--- Epoch 10/50 ---
+  Train Loss: 4.7542 | Acc: 32.3%
+  Val EER: 2.00% | HTER: 2.00% | AUC: 0.9948
+  Val Cls Acc: 0.0%
+  Time: 80.8s
+
+--- Epoch 11/50 ---
+  Train Loss: 12.3483 | Acc: 8.0%
+  Val EER: 3.20% | HTER: 3.20% | AUC: 0.9931
+  Val Cls Acc: 0.0%
+  Time: 78.3s
+
+--- Epoch 12/50 ---
+  Train Loss: 9.2001 | Acc: 14.4%
+  Val EER: 2.13% | HTER: 2.13% | AUC: 0.9950
+  Val Cls Acc: 0.0%
+  Time: 78.7s
+
+--- Epoch 13/50 ---
+  Train Loss: 5.5973 | Acc: 36.0%
+  Val EER: 1.67% | HTER: 1.67% | AUC: 0.9943
+  Val Cls Acc: 0.0%
+  Time: 80.1s
+  [BEST] Saved best model (EER: 1.67%)
+
+--- Epoch 14/50 ---
+  Train Loss: 3.5895 | Acc: 50.5%
+  Val EER: 2.13% | HTER: 2.13% | AUC: 0.9938
+  Val Cls Acc: 0.0%
+  Time: 80.6s
+
+--- Epoch 15/50 ---
+  Train Loss: 1.8982 | Acc: 69.8%
+  Val EER: 1.27% | HTER: 1.27% | AUC: 0.9961
+  Val Cls Acc: 0.0%
+  Time: 80.1s
+  [BEST] Saved best model (EER: 1.27%)
+
+--- Epoch 16/50 ---
+  Train Loss: 1.2099 | Acc: 79.1%
+  Val EER: 1.73% | HTER: 1.73% | AUC: 0.9957
+  Val Cls Acc: 0.0%
+  Time: 79.7s
+
+--- Epoch 17/50 ---
+  Train Loss: 0.6097 | Acc: 88.1%
+  Val EER: 1.33% | HTER: 1.33% | AUC: 0.9979
+  Val Cls Acc: 0.0%
+  Time: 80.9s
+
+--- Epoch 18/50 ---
+  Train Loss: 0.2883 | Acc: 94.2%
+  Val EER: 1.07% | HTER: 1.07% | AUC: 0.9982
+  Val Cls Acc: 0.0%
+  Time: 80.0s
+  [BEST] Saved best model (EER: 1.07%)
+
+--- Epoch 19/50 ---
+  Train Loss: 0.1581 | Acc: 97.1%
+  Val EER: 1.27% | HTER: 1.27% | AUC: 0.9981
+  Val Cls Acc: 0.0%
+  Time: 81.5s
+
+--- Epoch 20/50 ---
+  Train Loss: 0.0587 | Acc: 98.7%
+  Val EER: 1.40% | HTER: 1.40% | AUC: 0.9980
+  Val Cls Acc: 0.0%
+  Time: 80.5s
+
+--- Epoch 21/50 ---
+  Train Loss: 2.1540 | Acc: 67.2%
+  Val EER: 2.53% | HTER: 2.50% | AUC: 0.9945
+  Val Cls Acc: 0.0%
+  Time: 83.0s
+
+--- Epoch 22/50 ---
+  Train Loss: 2.2443 | Acc: 66.2%
+  Val EER: 2.00% | HTER: 2.00% | AUC: 0.9971
+  Val Cls Acc: 0.0%
+  Time: 79.5s
+
+--- Epoch 23/50 ---
+  Train Loss: 1.5092 | Acc: 75.6%
+  Val EER: 1.53% | HTER: 1.53% | AUC: 0.9966
+  Val Cls Acc: 0.0%
+  Time: 79.7s
+
+--- Epoch 24/50 ---
+  Train Loss: 1.2084 | Acc: 80.7%
+  Val EER: 1.73% | HTER: 1.67% | AUC: 0.9949
+  Val Cls Acc: 0.0%
+  Time: 80.7s
+
+--- Epoch 25/50 ---
+  Train Loss: 0.7927 | Acc: 85.9%
+  Val EER: 1.73% | HTER: 1.73% | AUC: 0.9954
+  Val Cls Acc: 0.0%
+  Time: 80.7s
+
+--- Epoch 26/50 ---
+  Train Loss: 0.3788 | Acc: 93.2%
+  Val EER: 1.53% | HTER: 1.53% | AUC: 0.9979
+  Val Cls Acc: 0.0%
+  Time: 79.8s
+
+--- Epoch 27/50 ---
+  Train Loss: 0.1572 | Acc: 96.7%
+  Val EER: 1.53% | HTER: 1.53% | AUC: 0.9972
+  Val Cls Acc: 0.0%
+  Time: 79.8s
+
+--- Epoch 28/50 ---
+  Train Loss: 0.0534 | Acc: 98.6%
+  Val EER: 1.40% | HTER: 1.40% | AUC: 0.9979
+  Val Cls Acc: 0.0%
+  Time: 77.4s
+
+--- Epoch 29/50 ---
+  Train Loss: 0.0188 | Acc: 99.6%
+  Val EER: 1.27% | HTER: 1.27% | AUC: 0.9984
+  Val Cls Acc: 0.0%
+  Time: 80.2s
+
+--- Epoch 30/50 ---
+  Train Loss: 0.0141 | Acc: 99.7%
+  Val EER: 1.13% | HTER: 1.13% | AUC: 0.9988
+  Val Cls Acc: 0.0%
+  Time: 76.9s
+
+--- Epoch 31/50 ---
+  Train Loss: 1.1545 | Acc: 82.9%
+  Val EER: 2.07% | HTER: 2.07% | AUC: 0.9960
+  Val Cls Acc: 0.0%
+  Time: 47.4s
+
+--- Epoch 32/50 ---
+  Train Loss: 1.4488 | Acc: 76.7%
+  Val EER: 1.47% | HTER: 1.47% | AUC: 0.9988
+  Val Cls Acc: 0.0%
+  Time: 59.8s
+
+--- Epoch 33/50 ---
+  Train Loss: 0.9276 | Acc: 83.9%
+  Val EER: 1.80% | HTER: 1.80% | AUC: 0.9981
+  Val Cls Acc: 0.0%
+  Time: 55.3s
+
+--- Epoch 34/50 ---
+  Train Loss: 0.5688 | Acc: 89.0%
+  Val EER: 1.73% | HTER: 1.73% | AUC: 0.9972
+  Val Cls Acc: 0.0%
+  Time: 57.2s
+
+--- Epoch 35/50 ---
+  Train Loss: 0.4391 | Acc: 92.2%
+  Val EER: 1.67% | HTER: 1.67% | AUC: 0.9971
+  Val Cls Acc: 0.0%
+  Time: 65.8s
+
+--- Epoch 36/50 ---
+  Train Loss: 0.1774 | Acc: 96.1%
+  Val EER: 1.27% | HTER: 1.27% | AUC: 0.9978
+  Val Cls Acc: 0.0%
+  Time: 80.8s
+
+--- Epoch 37/50 ---
+  Train Loss: 0.0672 | Acc: 98.4%
+  Val EER: 1.53% | HTER: 1.53% | AUC: 0.9968
+  Val Cls Acc: 0.0%
+  Time: 79.8s
+
+--- Epoch 38/50 ---
+  Train Loss: 0.0197 | Acc: 99.6%
+  Val EER: 1.33% | HTER: 1.33% | AUC: 0.9978
+  Val Cls Acc: 0.0%
+  Time: 80.9s
+
+--- Epoch 39/50 ---
+  Train Loss: 0.0178 | Acc: 99.5%
+  Val EER: 1.20% | HTER: 1.20% | AUC: 0.9978
+  Val Cls Acc: 0.0%
+  Time: 80.3s
+
+--- Epoch 40/50 ---
+  Train Loss: 0.0061 | Acc: 99.8%
+  Val EER: 1.20% | HTER: 1.17% | AUC: 0.9978
+  Val Cls Acc: 0.0%
+  Time: 80.5s
+
+--- Epoch 41/50 ---
+  Train Loss: 0.7400 | Acc: 88.0%
+  Val EER: 2.33% | HTER: 2.33% | AUC: 0.9947
+  Val Cls Acc: 0.0%
+  Time: 81.1s
+
+--- Epoch 42/50 ---
+  Train Loss: 0.9795 | Acc: 83.6%
+  Val EER: 2.33% | HTER: 2.33% | AUC: 0.9938
+  Val Cls Acc: 0.0%
+  Time: 79.7s
+
+--- Epoch 43/50 ---
+  Train Loss: 0.7762 | Acc: 87.8%
+  Val EER: 1.27% | HTER: 1.27% | AUC: 0.9990
+  Val Cls Acc: 0.0%
+  Time: 79.6s
+
+--- Epoch 44/50 ---
+  Train Loss: 0.5366 | Acc: 90.5%
+  Val EER: 0.67% | HTER: 0.67% | AUC: 0.9996
+  Val Cls Acc: 0.0%
+  Time: 80.1s
+  [BEST] Saved best model (EER: 0.67%)
+
+--- Epoch 45/50 ---
+  Train Loss: 0.3050 | Acc: 94.9%
+  Val EER: 1.00% | HTER: 1.00% | AUC: 0.9988
+  Val Cls Acc: 0.0%
+  Time: 81.0s
+
+--- Epoch 46/50 ---
+  Train Loss: 0.1091 | Acc: 98.2%
+  Val EER: 1.73% | HTER: 1.73% | AUC: 0.9969
+  Val Cls Acc: 0.0%
+  Time: 79.7s
+
+--- Epoch 47/50 ---
+  Train Loss: 0.0213 | Acc: 99.3%
+  Val EER: 1.47% | HTER: 1.47% | AUC: 0.9974
+  Val Cls Acc: 0.0%
+  Time: 80.0s
+
+--- Epoch 48/50 ---
+  Train Loss: 0.0124 | Acc: 99.8%
+  Val EER: 1.07% | HTER: 1.07% | AUC: 0.9977
+  Val Cls Acc: 0.0%
+  Time: 79.8s
+
+--- Epoch 49/50 ---
+  Train Loss: 0.0030 | Acc: 99.9%
+  Val EER: 1.07% | HTER: 1.07% | AUC: 0.9984
+  Val Cls Acc: 0.0%
+  Time: 71.2s
+
+--- Epoch 50/50 ---
+  Train Loss: 0.0024 | Acc: 100.0%
+  Val EER: 1.07% | HTER: 1.07% | AUC: 0.9982
+  Val Cls Acc: 0.0%
+  Time: 71.3s
+
+[6] Final test on test set...
+  Loaded best model (from epoch 44)
+
+======================================================================
+FINAL RESULTS
+======================================================================
+Model: ResNet18 + ArcFace=True
+Dataset: FV-USM Session 1st
+Test EER:  1.20%
+Test HTER: 1.17%
+Test AUC:  0.9995
+Test Cls Acc: 0.0%
+Threshold: 0.4557
+Pairs: 3000
+======================================================================
+
+[7] Saving results...
+  Saved results to results\baseline_resnet18_arcface_expD\results.json

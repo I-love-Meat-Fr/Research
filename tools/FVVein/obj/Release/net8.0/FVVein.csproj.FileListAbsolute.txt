@@ -1,0 +1,6 @@
+D:\WorkSpace\Research\Research\MFFV\tools\FVVein\obj\Release\net8.0\FVVein.csproj.AssemblyReference.cache
+D:\WorkSpace\Research\Research\MFFV\tools\FVVein\obj\Release\net8.0\FVVein.GeneratedMSBuildEditorConfig.editorconfig
+D:\WorkSpace\Research\Research\MFFV\tools\FVVein\obj\Release\net8.0\FVVein.AssemblyInfoInputs.cache
+D:\WorkSpace\Research\Research\MFFV\tools\FVVein\obj\Release\net8.0\FVVein.AssemblyInfo.cs
+D:\WorkSpace\Research\Research\MFFV\tools\FVVein\obj\Release\net8.0\FVVein.csproj.CoreCompileInputs.cache
+D:\WorkSpace\Research\Research\MFFV\tools\FVVein\obj\Release\net8.0\FVVein.sourcelink.json

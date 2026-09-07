@@ -1,0 +1,135 @@
+[Setup] Device: cuda
+[Setup] Model: gla-fd
+[Setup] Epochs: 30, Batch size: 8, LR: 0.0001
+
+[Phase 1] Loading datasets...
+  [Dataset] FV-USM root: d:/WorkSpace/Research/Research/MFFV/data/external\Published_database_FV-USM_Dec2013
+[FVUSM] train: 2064 samples | 344 unique IDs
+[FVUSM] val: 438 samples | 73 unique IDs
+[FVUSM] test: 450 samples | 75 unique IDs
+
+[Phase 1] Building pair datasets for verification...
+[FVUSM] val: 438 samples | 73 unique IDs
+[FVUSM] test: 450 samples | 75 unique IDs
+  [Eval] pairs=2000, batch_size=4
+
+[Phase 3] Building model...
+  Number of classes: 344
+  [OK] Using original GLA-FD (7,368,675 params)
+  Model: ClassificationModel
+  Parameters: 7,588,411
+
+[Phase 4] Setting up training...
+  Loss: CrossEntropyLoss
+
+[Phase 5] Training...
+
+[Epoch 1/30]
+  Train Loss: 5.8242
+  Val EER: 0.0780 | HTER: 0.0770 | AUC: 0.9760
+  Time: 736.9s
+  [BEST] Saved best model (EER=0.0780)
+
+[Epoch 2/30]
+  Train Loss: 5.7836
+  Val EER: 0.0620 | HTER: 0.0620 | AUC: 0.9841
+  Time: 720.8s
+  [BEST] Saved best model (EER=0.0620)
+
+[Epoch 3/30]
+  Train Loss: 5.7418
+  Val EER: 0.0520 | HTER: 0.0515 | AUC: 0.9866
+  Time: 718.0s
+  [BEST] Saved best model (EER=0.0520)
+
+[Epoch 4/30]
+  Train Loss: 5.6978
+  Val EER: 0.0420 | HTER: 0.0420 | AUC: 0.9910
+  Time: 702.9s
+  [BEST] Saved best model (EER=0.0420)
+
+[Epoch 5/30]
+  Train Loss: 5.6600
+  Val EER: 0.0430 | HTER: 0.0430 | AUC: 0.9904
+  Time: 1154.5s
+
+[Epoch 6/30]
+  Train Loss: 5.6215
+  Val EER: 0.0380 | HTER: 0.0380 | AUC: 0.9923
+  Time: 1088.1s
+  [BEST] Saved best model (EER=0.0380)
+
+[Epoch 7/30]
+  Train Loss: 5.5850
+  Val EER: 0.0290 | HTER: 0.0280 | AUC: 0.9933
+  Time: 1141.1s
+  [BEST] Saved best model (EER=0.0290)
+
+[Epoch 8/30]
+  Train Loss: 5.5472
+  Val EER: 0.0360 | HTER: 0.0360 | AUC: 0.9930
+  Time: 1067.3s
+
+[Epoch 9/30]
+  Train Loss: 5.5137
+  Val EER: 0.0350 | HTER: 0.0350 | AUC: 0.9930
+  Time: 1142.1s
+
+[Epoch 10/30]
+  Train Loss: 5.4830
+  Val EER: 0.0310 | HTER: 0.0310 | AUC: 0.9932
+  Time: 1071.2s
+
+[Epoch 11/30]
+  Train Loss: 5.4504
+  Val EER: 0.0310 | HTER: 0.0310 | AUC: 0.9930
+  Time: 1139.2s
+
+[Epoch 12/30]
+  Train Loss: 5.4234
+  Val EER: 0.0340 | HTER: 0.0340 | AUC: 0.9930
+  Time: 1067.9s
+
+[Epoch 13/30]
+  Train Loss: 5.3963
+  Val EER: 0.0280 | HTER: 0.0280 | AUC: 0.9935
+  Time: 1139.2s
+  [BEST] Saved best model (EER=0.0280)
+
+[Epoch 14/30]
+  Train Loss: 5.3724
+  Val EER: 0.0230 | HTER: 0.0230 | AUC: 0.9941
+  Time: 1070.5s
+  [BEST] Saved best model (EER=0.0230)
+
+[Epoch 15/30]
+  Train Loss: 5.3478
+  Val EER: 0.0260 | HTER: 0.0255 | AUC: 0.9940
+  Time: 763.2s
+
+[Epoch 16/30]
+  Train Loss: 5.3272
+  Val EER: 0.0250 | HTER: 0.0250 | AUC: 0.9935
+  Time: 657.4s
+
+[Epoch 17/30]
+  Train Loss: 5.3100
+  Val EER: 0.0260 | HTER: 0.0260 | AUC: 0.9934
+  Time: 719.5s
+
+[Epoch 18/30]
+  Train Loss: 5.2928
+  Val EER: 0.0270 | HTER: 0.0270 | AUC: 0.9939
+  Time: 666.6s
+
+[Epoch 19/30]
+  Train Loss: 5.2762
+  Val EER: 0.0250 | HTER: 0.0250 | AUC: 0.9940
+  Time: 717.9s
+
+[Epoch 20/30]
+  Train Loss: 5.2678
+  Val EER: 0.0250 | HTER: 0.0250 | AUC: 0.9944
+  Time: 675.0s
+
+[Epoch 21/30]

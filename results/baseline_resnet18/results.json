@@ -1,0 +1,30 @@
+{
+  "model": "ResNet18",
+  "arcface": false,
+  "epochs": 1,
+  "batch_size": 16,
+  "lr": 0.001,
+  "embedding_dim": 128,
+  "session": "1st",
+  "num_params": 11280280,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 5.804034484449283,
+      "train_acc": 0.005329457364341085,
+      "val_eer": 0.108,
+      "val_hter": 0.108,
+      "val_auc": 0.9475840000000001,
+      "val_cls_acc": 0.0,
+      "time_sec": 71.30519795417786
+    }
+  ],
+  "final_test": {
+    "eer": 0.156,
+    "hter": 0.156,
+    "auc": 0.9299839999999999,
+    "threshold": 0.9744321703910828,
+    "num_pairs": 500
+  },
+  "final_test_cls_acc": 0.0
+}

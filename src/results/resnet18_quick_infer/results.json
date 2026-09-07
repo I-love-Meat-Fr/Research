@@ -1,0 +1,70 @@
+{
+  "model": "ResNet18",
+  "arcface": true,
+  "epochs": 5,
+  "batch_size": 32,
+  "lr": 0.001,
+  "embedding_dim": 128,
+  "session": "1st",
+  "num_params": 11280280,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 21.212211432823768,
+      "train_acc": 0.0,
+      "val_eer": 0.1208,
+      "val_hter": 0.1206,
+      "val_auc": 0.94896736,
+      "val_cls_acc": 0.0,
+      "time_sec": 71.45703291893005
+    },
+    {
+      "epoch": 2,
+      "train_loss": 20.519821049616887,
+      "train_acc": 0.0,
+      "val_eer": 0.0836,
+      "val_hter": 0.0836,
+      "val_auc": 0.9745419200000001,
+      "val_cls_acc": 0.0,
+      "time_sec": 27.782819509506226
+    },
+    {
+      "epoch": 3,
+      "train_loss": 20.09465789794922,
+      "train_acc": 0.0,
+      "val_eer": 0.0684,
+      "val_hter": 0.0684,
+      "val_auc": 0.982012,
+      "val_cls_acc": 0.0,
+      "time_sec": 54.70652651786804
+    },
+    {
+      "epoch": 4,
+      "train_loss": 19.65049080481896,
+      "train_acc": 0.0,
+      "val_eer": 0.066,
+      "val_hter": 0.066,
+      "val_auc": 0.98365648,
+      "val_cls_acc": 0.0,
+      "time_sec": 58.00978708267212
+    },
+    {
+      "epoch": 5,
+      "train_loss": 19.10914421081543,
+      "train_acc": 0.0,
+      "val_eer": 0.0492,
+      "val_hter": 0.0492,
+      "val_auc": 0.98986368,
+      "val_cls_acc": 0.0,
+      "time_sec": 27.373749017715454
+    }
+  ],
+  "final_test": {
+    "eer": 0.06,
+    "hter": 0.06,
+    "auc": 0.98657008,
+    "threshold": 0.891423225402832,
+    "num_pairs": 5000
+  },
+  "final_test_cls_acc": 0.0
+}

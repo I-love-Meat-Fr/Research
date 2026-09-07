@@ -1,0 +1,34 @@
+{
+  "model": "gla-fd",
+  "epochs": 2,
+  "batch_size": 8,
+  "lr": 0.0001,
+  "num_params": 7588411,
+  "best_epoch": 2,
+  "best_val_eer": 0.044,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 5.822262989458188,
+      "val_eer": 0.08,
+      "val_hter": 0.08,
+      "val_auc": 0.975136,
+      "time_sec": 630.4248483181
+    },
+    {
+      "epoch": 2,
+      "train_loss": 5.786190672438274,
+      "val_eer": 0.044,
+      "val_hter": 0.044,
+      "val_auc": 0.989344,
+      "time_sec": 700.8896200656891
+    }
+  ],
+  "final_test": {
+    "eer": 0.092,
+    "hter": 0.092,
+    "auc": 0.9771839999999999,
+    "threshold": 0.7952120304107666,
+    "num_pairs": 500
+  }
+}

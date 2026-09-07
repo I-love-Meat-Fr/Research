@@ -1,0 +1,24 @@
+{
+  "model": "fdt",
+  "epochs": 1,
+  "batch_size": 8,
+  "lr": 0.001,
+  "num_params": 11280280,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 5.812877265057822,
+      "val_eer": 0.348,
+      "val_hter": 0.28,
+      "val_auc": 0.7707600000000001,
+      "time_sec": 216.97053265571594
+    }
+  ],
+  "final_test": {
+    "eer": 0.284,
+    "hter": 0.268,
+    "auc": 0.8058879999999999,
+    "threshold": 1.0,
+    "num_pairs": 500
+  }
+}
