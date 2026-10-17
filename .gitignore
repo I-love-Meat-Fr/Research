@@ -41,3 +41,41 @@ dist/
 *.exe
 *.dll
 *.pdb
+
+# Visual Studio / MSBuild artifacts
+.vs/
+*.user
+*.suo
+*.sdf
+*.ipch
+*.pch
+*.obj
+*.lib
+*.exp
+*.map
+*.bsc
+*.aps
+*.res
+*.sbr
+*.tlog
+*.log
+*.idb
+*.pdb
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+Win32/
+ARM/
+ARM64/
+Generated\ Files/
+ipch/
+*.lastbuildstate
+
+# MS Office temp
+~$*.docx
+~$*.xlsx
+~$*.pptx
