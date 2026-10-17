@@ -1,858 +1,640 @@
 """
-Finger Vein Recognition — End-to-End Streamlit App
-==================================================
-Multi-tab app: Training Dashboard, Verify Pair, Batch Verify, Enrollment, Identification.
+End-to-End Finger Vein Recognition — Streamlit Demo App
+=========================================================
+A research demo GUI for the finger-vein recognition pipeline.
 
-Usage:
-    cd src
-    streamlit run e2e_app.py
+Features:
+    * Register new users (one or multiple sample images).
+    * Verify a single image against a claimed identity (1:1 matching).
+    * Browse and manage the enrolled user database.
+    * View live evaluation metrics (EER, AUC) on the loaded checkpoint.
 
-Architecture:
-    Tab 1: Training Dashboard    (charts & history)
-    Tab 2: Single Pair Verify   (upload 2 imgs → similarity → verdict)
-    Tab 3: Batch Verify          (CSV → metrics table + download)
-    Tab 4: Enrollment            (multi-sample upload → save embeddings to SQLite)
-    Tab 5: Identification         (1 query img → top-K matches against DB)
+Run with:
+    streamlit run src/e2e_app.py
 
-Dependencies:
-    streamlit, plotly, torch, torchvision, Pillow, numpy, pandas
-    + src/infer.py, src/dashboard.py, src/enrollment_db.py
+This module reuses the existing pieces of the codebase:
+    * infer.py        — model loading + image preprocessing
+    * enrollment_db.py — SQLite-backed user/embedding store
+    * eval_results.json — pre-computed verification statistics
 """
-import sys
-import io
-import csv
-import json
-import tempfile
-import traceback
-from pathlib import Path
-from typing import Optional, List, Tuple, Dict
 
-# Ensure src dir is importable when run via `streamlit run`
-SRC_DIR = Path(__file__).resolve().parent
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from typing import List, Tuple
 
 import numpy as np
-import pandas as pd
 import streamlit as st
-import plotly.graph_objects as go
-import plotly.express as px
-from PIL import Image
 import torch
+import torch.nn as nn
+from PIL import Image
 
-# Local imports (sibling modules in src/)
-from infer import (
-    load_checkpoint,
-    build_model,
-    preprocess_image,
-    extract_embedding,
-    compute_similarity,
-    verify_pair,
-)
-from enrollment_db import EnrollmentDB
+# Make `src` importable so we can reuse the project modules directly.
+SRC_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SRC_DIR))
+
+# Reuse existing components ---------------------------------------------------------
+# These imports are deliberately placed at the top of the module so that
+# Streamlit's hot-reload detects any changes to the underlying training code.
+from enrollment_db import EnrollmentDB  # noqa: E402
 
 
 # ============================================================================
-# PAGE CONFIG
+# MODEL DEFINITION (must match the architecture in eval_fvusm.py / train_fvusm.py)
 # ============================================================================
+class ResNet18Backbone(nn.Module):
+    """Backbone architecture matching the training script (`train_fvusm.py`).
 
+    The trained checkpoint stores the encoder inside an attribute named
+    `backbone` (an `nn.Sequential` so the keys look like
+    `backbone.0.weight`, `backbone.4.0.conv1.weight`, ...) plus an `embed`
+    linear and a `bn` BatchNorm. The ArcFace classifier head is stored
+    separately under the key `head.weight` and is *not* needed for
+    embedding extraction, so we only build the backbone here.
+
+    Forward returns the L2-normalised 128-D embedding (matching the
+    `compute_eer`/gallery-centroid pipeline used during evaluation).
+    """
+
+    def __init__(self, embedding_dim: int = 128):
+        super().__init__()
+        import torchvision.models as tvm
+
+        m = tvm.resnet18(weights=None)
+        m.conv1 = nn.Conv2d(1, 64, 7, 2, 3, bias=False)
+        m.fc = nn.Identity()
+        # Wrap everything before `fc` (already Identity) in a Sequential so the
+        # state_dict layout matches the saved checkpoint exactly.
+        self.backbone = nn.Sequential(*list(m.children())[:-1])
+        self.embed = nn.Linear(512, embedding_dim)
+        self.bn = nn.BatchNorm1d(embedding_dim)
+
+    def forward(self, x: torch.Tensor, return_embeddings: bool = True) -> torch.Tensor:
+        # We always return the embedding — the demo only does verification.
+        f = self.backbone(x).flatten(1)
+        emb_raw = self.embed(f)
+        emb = self.bn(emb_raw)
+        return nn.functional.normalize(emb, p=2, dim=1)
+
+# ============================================================================
+# PAGE CONFIGURATION
+# ============================================================================
 st.set_page_config(
-    page_title="Finger Vein Recognition E2E",
-    page_icon="🩸",
+    page_title="Finger Vein Recognition — Research Demo",
+    page_icon="F",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-
-# ============================================================================
-# CONSTANTS
-# ============================================================================
-
-DEFAULT_RESULTS_DIR = "results"
-DEFAULT_DB_PATH = "results/enrollment.db"
-DEFAULT_CHECKPOINT = "results/baseline_resnet18_arcface_expD/best_model.pth"
+DEFAULT_CKPT = SRC_DIR / "results" / "fvusm_resnet18_arcface_v1" / "best.pth"
+DEFAULT_DB = SRC_DIR / "results" / "enrollment.db"
+EVAL_JSON = SRC_DIR / "results" / "fvusm_resnet18_arcface_v1" / "eval_results.json"
 
 
 # ============================================================================
-# CACHED MODEL LOADER
+# RESOURCE LOADERS (cached so the model is loaded only once per session)
 # ============================================================================
+@st.cache_resource(show_spinner="Loading ResNet-18 backbone …")
+def load_model(checkpoint_path: str):
+    """Load the trained ResNet-18 model that matches the saved checkpoint format.
 
-@st.cache_resource(show_spinner="Loading model...")
-def get_cached_model(checkpoint_path: str):
-    """Load model + metadata. Cached across reruns.
+    The checkpoint is a dict with two state_dict groups plus metadata:
+        * `backbone`            — conv encoder (`nn.Sequential`) + `embed` + `bn`
+        * `head`                — ArcFace classifier (`weight` parameter)
+        * `embedding_dim`       — int
+        * `num_classes`         — int
+        * `eer`, `pos_mean`, `neg_mean`, `epoch` — training metrics
 
-    Returns: (model, meta, device)
+    We only need the backbone for verification, so we build a
+    `ResNet18Backbone` and load `ckpt['backbone']` into it. The ArcFace head
+    is intentionally discarded (we never classify; we compare embeddings).
+    Cached for the lifetime of the Streamlit session.
     """
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    meta, state_dict = load_checkpoint(checkpoint_path, device)
-    model = build_model(meta, device)
-    model.load_state_dict(state_dict)
+    import torch
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
+
+    embedding_dim = ckpt.get("embedding_dim", 128)
+    num_classes = ckpt.get("num_classes", 492)
+
+    model = ResNet18Backbone(embedding_dim=embedding_dim).to(device)
+    missing, unexpected = model.load_state_dict(ckpt["backbone"], strict=False)
+    if missing or unexpected:
+        # Surface mismatches loudly — this almost certainly means the
+        # checkpoint was produced by a different architecture.
+        raise RuntimeError(
+            f"Backbone state_dict mismatch. Missing={missing[:5]}... "
+            f"Unexpected={unexpected[:5]}..."
+        )
     model.eval()
+
+    meta = {
+        "embedding_dim": embedding_dim,
+        "num_classes": num_classes,
+        "img_size": 128,  # matches training preprocessing (eval_fvusm.py)
+        "threshold": ckpt.get("eer"),  # EER stored at training time
+        "epoch": ckpt.get("epoch"),
+        "eer": ckpt.get("eer"),
+        "pos_mean": ckpt.get("pos_mean"),
+        "neg_mean": ckpt.get("neg_mean"),
+    }
     return model, meta, device
 
 
-def discover_checkpoints(results_dir: str = DEFAULT_RESULTS_DIR) -> Dict[str, str]:
-    """Return {display_name: full_path} for all best_model.pth files."""
-    found = {}
-    root = Path(results_dir)
-    if not root.exists():
-        return found
-    for pth in root.rglob("best_model.pth"):
-        if pth.is_file():
-            display = str(pth.relative_to(root)).replace("\\", "/")
-            found[display] = str(pth)
-    return found
+def _torch_cuda_available() -> bool:
+    import torch
+    return bool(torch.cuda.is_available())
 
 
-# ============================================================================
-# SHARED HELPERS
-# ============================================================================
+@st.cache_resource
+def get_db() -> EnrollmentDB:
+    return EnrollmentDB(str(DEFAULT_DB))
 
-def render_image_with_caption(img: Image.Image, caption: str, width: int = 250):
-    """Render PIL image with caption."""
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    st.image(buf.getvalue(), caption=caption, width=width)
-
-
-def load_uploaded_image(uploaded_file) -> Optional[Image.Image]:
-    """Load image from Streamlit UploadedFile, convert to grayscale."""
-    try:
-        img = Image.open(uploaded_file)
-        if img.mode != 'L':
-            img = img.convert('L')
-        return img
-    except Exception as e:
-        st.error(f"Failed to load image: {e}")
-        return None
-
-
-def similarity_gauge(score: float, threshold: float) -> go.Figure:
-    """Gauge chart showing similarity score vs threshold."""
-    color = '#2ECC71' if score > threshold else '#E74C3C'
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number+delta",
-        value=score,
-        delta={'reference': threshold, 'increasing': {'color': '#2ECC71'}, 'decreasing': {'color': '#E74C3C'}},
-        gauge={
-            'axis': {'range': [-1, 1], 'tickwidth': 1},
-            'bar': {'color': color, 'thickness': 0.3},
-            'bgcolor': 'white',
-            'borderwidth': 2,
-            'bordercolor': 'gray',
-            'steps': [
-                {'range': [-1, threshold], 'color': '#FADBD8'},
-                {'range': [threshold, 1.0], 'color': '#D5F5E3'},
-            ],
-            'threshold': {
-                'line': {'color': 'black', 'width': 4},
-                'thickness': 0.75,
-                'value': threshold,
-            },
-        },
-        number={'valueformat': '.4f', 'font': {'size': 32}},
-        title={'text': 'Cosine Similarity', 'font': {'size': 18}},
-    ))
-    fig.update_layout(height=280, margin=dict(l=20, r=20, t=40, b=20))
-    return fig
-
-
-def verdict_badge(verdict: str, score: float, threshold: float) -> str:
-    """Markdown badge for verdict."""
-    if verdict == 'GENUINE':
-        return f"### :green[MATCH — score {score:.4f} > threshold {threshold:.4f}]"
-    elif verdict == 'IMPOSTOR':
-        return f"### :red[NO MATCH — score {score:.4f} < threshold {threshold:.4f}]"
-    else:
-        return f"### :orange[TIE — score {score:.4f} = threshold {threshold:.4f}]"
-
-
-# ============================================================================
-# TAB 1: TRAINING DASHBOARD (logic from dashboard.py)
-# ============================================================================
 
 @st.cache_data
-def load_results(results_dir: str = DEFAULT_RESULTS_DIR) -> List[Dict]:
-    results = []
-    results_path = Path(results_dir)
-    if not results_path.exists():
-        return []
-    for model_dir in results_path.iterdir():
-        if not model_dir.is_dir():
-            continue
-        json_file = model_dir / "results.json"
-        if json_file.exists():
-            try:
-                with open(json_file, 'r') as f:
-                    data = json.load(f)
-                    data['model_dir'] = model_dir.name
-                    data['results_path'] = str(json_file)
-                    results.append(data)
-            except Exception:
-                pass
-    return results
+def load_eval_stats() -> dict:
+    if EVAL_JSON.exists():
+        with open(EVAL_JSON, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
 
 
-def render_training_chart(history: List[Dict], metric: str) -> go.Figure:
-    df = pd.DataFrame(history)
-    fig = go.Figure()
-    if metric == "eer":
-        fig.add_trace(go.Scatter(
-            x=df['epoch'], y=[h * 100 for h in df['val_eer']],
-            mode='lines+markers', name='Val EER (%)',
-            line=dict(color='#FF6B6B', width=3), marker=dict(size=10),
-        ))
-        fig.update_yaxes(title="EER (%)")
-    elif metric == "auc":
-        fig.add_trace(go.Scatter(
-            x=df['epoch'], y=df['val_auc'],
-            mode='lines+markers', name='Val AUC',
-            line=dict(color='#4ECDC4', width=3), marker=dict(size=10),
-        ))
-        fig.update_yaxes(title="AUC", range=[0.8, 1.01])
-    elif metric == "loss":
-        fig.add_trace(go.Scatter(
-            x=df['epoch'], y=df['train_loss'],
-            mode='lines+markers', name='Train Loss',
-            line=dict(color='#FF6B6B', width=3), marker=dict(size=10),
-        ))
-        fig.update_yaxes(title="Loss")
-    fig.update_layout(
-        title=f"Training Progress — {metric.upper()}",
-        xaxis_title="Epoch", hovermode="x unified",
-        template="plotly_white", height=400,
+# ============================================================================
+# CORE HELPERS — kept inside this file to remain self-contained.
+# ============================================================================
+def _extract_single(model, image: Image.Image, device: str, img_size: int) -> np.ndarray:
+    """Extract L2-normalised embedding for one image."""
+    import torch
+    from torchvision import transforms
+
+    transform = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5], std=[0.5]),
+    ])
+    img = image.convert("L")
+    tensor = transform(img).unsqueeze(0).to(device)
+    with torch.no_grad():
+        emb = model(tensor, return_embeddings=True)
+    emb = emb.cpu().numpy().squeeze()
+    # Normalise (defensive — model already normalises but be explicit).
+    norm = np.linalg.norm(emb) + 1e-12
+    return (emb / norm).astype(np.float32)
+
+
+def _extract_batch(model, images: List[Image.Image], device: str, img_size: int) -> np.ndarray:
+    """Extract embeddings for a list of images, returns array shape [N, D]."""
+    import torch
+    from torchvision import transforms
+
+    transform = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5], std=[0.5]),
+    ])
+    tensors = []
+    for img in images:
+        img = img.convert("L")
+        tensors.append(transform(img))
+    batch = torch.stack(tensors).to(device)
+    with torch.no_grad():
+        emb = model(batch, return_embeddings=True)
+    emb = emb.cpu().numpy()
+    norms = np.linalg.norm(emb, axis=1, keepdims=True) + 1e-12
+    return (emb / norms).astype(np.float32)
+
+
+def _compute_decision_threshold(stats: dict, fallback: float = 0.5) -> float:
+    """Pick a sensible decision threshold from the eval stats.
+
+    We pick the midpoint between the intra-class (positive) and inter-class
+    (negative) cosine means. That is approximately the Equal-Error-Rate
+    operating point when the score distributions are symmetric.
+    """
+    if not stats:
+        return fallback
+    pos_mean = stats.get("pos_mean")
+    neg_mean = stats.get("neg_mean")
+    if pos_mean is None or neg_mean is None:
+        return fallback
+    return float((pos_mean + neg_mean) / 2)
+
+
+def _format_metric_pill(label: str, value: str, color: str = "#4ECDC4") -> str:
+    """Tiny HTML pill used inside markdown to display a metric."""
+    return (
+        f"<div style='display:inline-block;padding:6px 14px;margin:4px 6px 4px 0;"
+        f"border-radius:14px;background:{color}22;border:1px solid {color};"
+        f"font-size:0.95em;'><b>{label}:</b> {value}</div>"
     )
-    return fig
 
 
-def render_comparison_chart(results: List[Dict], metric: str) -> Optional[go.Figure]:
-    df_data = []
-    for r in results:
-        model_name = r.get('model', 'Unknown')
-        if r.get('arcface'):
-            model_name += " + ArcFace"
-        if metric == "eer":
-            value = r.get('final_test', {}).get('eer', 0) * 100
-        elif metric == "auc":
-            value = r.get('final_test', {}).get('auc', 0)
-        elif metric == "hter":
-            value = r.get('final_test', {}).get('hter', 0) * 100
+# ============================================================================
+# SIDEBAR
+# ============================================================================
+def render_sidebar() -> dict:
+    """Render the sidebar with model selection + dataset overview."""
+    st.sidebar.title("Finger Vein Demo")
+    st.sidebar.caption("Research prototype · ResNet-18 + ArcFace")
+
+    checkpoint_path = str(DEFAULT_CKPT)
+    if not Path(checkpoint_path).exists():
+        st.sidebar.error(f"Checkpoint missing: {checkpoint_path}")
+        st.stop()
+
+    db = get_db()
+    info = db.db_info()
+
+    st.sidebar.markdown("### Enrolled users")
+    st.sidebar.metric("Users", info["num_users"])
+    st.sidebar.metric("Stored embeddings", info["num_embeddings"])
+    st.sidebar.caption(f"DB: `{info['path']}`")
+
+    st.sidebar.markdown("---")
+    st.sidebar.caption(
+        "Tip: register at least two samples per user to make verification robust."
+    )
+    return {
+        "checkpoint": checkpoint_path,
+        "db": db,
+    }
+
+
+# ============================================================================
+# REGISTER PAGE
+# ============================================================================
+def page_register(model, meta, device, db: EnrollmentDB):
+    st.header("Register a new user")
+    st.markdown(
+        "Upload one or more finger-vein images for a new identity. "
+        "Multiple samples help the model produce a stable embedding gallery."
+    )
+
+    col_form, col_preview = st.columns([1, 1])
+
+    with col_form:
+        user_id = st.text_input(
+            "User ID",
+            placeholder="e.g. u001 or alice",
+            help="Unique identifier. Cannot contain spaces or special characters.",
+        ).strip()
+        full_name = st.text_input("Full name (optional)", placeholder="Alice Nguyen")
+        uploaded_files = st.file_uploader(
+            "Finger-vein images",
+            type=["png", "jpg", "jpeg", "bmp", "tif", "tiff"],
+            accept_multiple_files=True,
+            help="Single image per session or multiple samples — both work.",
+        )
+
+        register_clicked = st.button(
+            "Save & enroll",
+            type="primary",
+            disabled=not (user_id and uploaded_files),
+        )
+
+    with col_preview:
+        if uploaded_files:
+            st.markdown("**Preview**")
+            cols = st.columns(min(3, len(uploaded_files)))
+            for i, f in enumerate(uploaded_files[:6]):
+                cols[i % len(cols)].image(f, caption=f.name, use_container_width=True)
+            if len(uploaded_files) > 6:
+                st.caption(f"+ {len(uploaded_files) - 6} more images")
         else:
-            continue
-        df_data.append({'Model': model_name, metric.upper(): value, 'Epochs': r.get('epochs', 0)})
+            st.info("Upload images to preview here.")
 
-    df = pd.DataFrame(df_data)
-    if df.empty:
-        return None
-    if metric in ("eer", "hter"):
-        df = df.sort_values(metric.upper(), ascending=True)
-    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD']
-    fig = px.bar(df, x='Model', y=metric.upper(), color='Model',
-                 color_discrete_sequence=colors, title=f"Model Comparison — {metric.upper()}")
-    fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')
-    fig.update_layout(showlegend=False, template="plotly_white", height=400)
-    return fig
-
-
-def tab_training_dashboard(results_dir: str):
-    results = load_results(results_dir)
-
-    if not results:
-        st.warning("⚠️ No training results found.")
-        st.code(f"python baseline_resnet.py --epochs 50 --arcface --device cuda", language="bash")
-        return
-
-    # Sidebar selectors
-    with st.sidebar:
-        st.markdown("### 📊 Dashboard Settings")
-        metric = st.selectbox("Metric", ["eer", "auc", "loss"], key="dash_metric")
-
-    model_names = [
-        f"{r.get('model', 'Unknown')}" + (" + ArcFace" if r.get('arcface') else "")
-        for r in results
-    ]
-    with st.sidebar:
-        selected_model = st.selectbox("Select Model", model_names, key="dash_model")
-
-    selected = None
-    for r, name in zip(results, model_names):
-        if name == selected_model:
-            selected = r
-            break
-
-    if not selected:
-        return
-
-    col1, col2, col3, col4 = st.columns(4)
-    eer = selected.get('final_test', {}).get('eer', 0) * 100
-    auc = selected.get('final_test', {}).get('auc', 0)
-    hter = selected.get('final_test', {}).get('hter', 0) * 100
-    epochs = selected.get('epochs', 0)
-    col1.metric("Test EER", f"{eer:.2f}%")
-    col2.metric("Test AUC", f"{auc:.4f}")
-    col3.metric("Test HTER", f"{hter:.2f}%")
-    col4.metric("Epochs", epochs)
-
-    st.markdown("---")
-    col_l, col_r = st.columns(2)
-    with col_l:
-        st.subheader("📈 Training Progress")
-        if selected.get('history'):
-            st.plotly_chart(render_training_chart(selected['history'], metric), use_container_width=True)
-    with col_r:
-        st.subheader("🎯 Model Comparison")
-        fig = render_comparison_chart(results, metric)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("📋 Training History")
-    df = pd.DataFrame(selected.get('history', []))
-    if not df.empty:
-        if 'val_eer' in df.columns:
-            df['val_eer'] = df['val_eer'].apply(lambda x: f"{x*100:.2f}%")
-            df['val_hter'] = df['val_hter'].apply(lambda x: f"{x*100:.2f}%")
-            df['val_auc'] = df['val_auc'].apply(lambda x: f"{x:.4f}")
-            df['train_loss'] = df['train_loss'].apply(lambda x: f"{x:.4f}")
-        if 'train_acc' in df.columns:
-            df['train_acc'] = df['train_acc'].apply(lambda x: f"{x*100:.1f}%")
-        if 'time_sec' in df.columns:
-            df['time_sec'] = df['time_sec'].apply(lambda x: f"{x:.1f}s")
-        st.dataframe(df, use_container_width=True)
-
-
-# ============================================================================
-# TAB 2: SINGLE PAIR VERIFY
-# ============================================================================
-
-def tab_single_pair(model, meta, device, threshold: float):
-    st.subheader("🔍 Verify a Single Pair")
-    st.markdown(
-        "Upload two finger vein images to compute similarity and decide "
-        ":green[Genuine] vs :red[Impostor]."
-    )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Image 1**")
-        uploaded1 = st.file_uploader(
-            "First image", type=["png", "jpg", "jpeg", "bmp"],
-            key="pair_img1", label_visibility="collapsed",
-        )
-    with col2:
-        st.markdown("**Image 2**")
-        uploaded2 = st.file_uploader(
-            "Second image", type=["png", "jpg", "jpeg", "bmp"],
-            key="pair_img2", label_visibility="collapsed",
-        )
-
-    # Preview
-    if uploaded1:
-        img1 = load_uploaded_image(uploaded1)
-        if img1:
-            render_image_with_caption(img1, f"Image 1 — {uploaded1.name}")
-    if uploaded2:
-        img2 = load_uploaded_image(uploaded2)
-        if img2:
-            render_image_with_caption(img2, f"Image 2 — {uploaded2.name}")
-
-    if uploaded1 and uploaded2:
-        if st.button("🔎 Verify Pair", type="primary"):
-            try:
-                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t1:
-                    img1 = load_uploaded_image(uploaded1)
-                    img1.save(t1.name)
-                    p1 = t1.name
-                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t2:
-                    img2 = load_uploaded_image(uploaded2)
-                    img2.save(t2.name)
-                    p2 = t2.name
-
-                result = verify_pair(model, p1, p2, threshold, meta['img_size'], device)
-                score = result['score']
-                verdict = result['verdict']
-
-                # Verdict badge
-                st.markdown("---")
-                st.markdown(verdict_badge(verdict, score, threshold))
-
-                col_gauge, col_meta = st.columns([1, 1])
-                with col_gauge:
-                    st.plotly_chart(similarity_gauge(score, threshold), use_container_width=True)
-                with col_meta:
-                    st.markdown("#### Details")
-                    st.json({
-                        'cosine_similarity': round(score, 6),
-                        'threshold': round(threshold, 6),
-                        'verdict': verdict,
-                        'embedding_dim': meta['embedding_dim'],
-                        'image_size': meta['img_size'],
-                        'trained_eer': f"{meta['eer']*100:.2f}%" if meta.get('eer') else 'N/A',
-                    })
-
-                # Cleanup
-                Path(p1).unlink(missing_ok=True)
-                Path(p2).unlink(missing_ok=True)
-            except Exception as e:
-                st.error(f"Verification failed: {e}")
-                st.code(traceback.format_exc())
-
-
-# ============================================================================
-# TAB 3: BATCH VERIFY
-# ============================================================================
-
-def _compute_batch_metrics(rows: List[Dict], model, threshold: float, img_size: int, device) -> List[Dict]:
-    out = []
-    for row in rows:
-        p1, p2 = row.get('img1'), row.get('img2')
-        label = row.get('label')
-        if not p1 or not p2:
-            out.append({**row, 'score': None, 'verdict': 'ERROR', 'error': 'missing path'})
-            continue
-        try:
-            r = verify_pair(model, p1, p2, threshold, img_size, device)
-            row_out = {
-                **row,
-                'score': round(r['score'], 6),
-                'verdict': r['verdict'],
-            }
-            if label is not None:
-                # Convert label string/int to ground-truth genuine (1) / impostor (0)
-                if isinstance(label, str):
-                    gt = 1 if label.strip().lower() in ('1', 'genuine', 'match', 'true', 'same') else 0
-                else:
-                    gt = int(label)
-                pred = 1 if r['verdict'] == 'GENUINE' else 0
-                row_out['gt'] = gt
-                row_out['pred'] = pred
-                row_out['correct'] = (gt == pred)
-            out.append(row_out)
-        except Exception as e:
-            out.append({**row, 'score': None, 'verdict': 'ERROR', 'error': str(e)})
-    return out
-
-
-def tab_batch_verify(model, meta, device, threshold: float):
-    st.subheader("📋 Batch Verification from CSV")
-    st.markdown(
-        "Upload a CSV with columns `img1`, `img2` (and optional `label` where "
-        "`1`/genuine vs `0`/impostor)."
-    )
-
-    uploaded = st.file_uploader("Upload CSV", type=["csv"], key="batch_csv")
-    use_sample = st.checkbox(
-        "Or load sample pairs (synthetic from FV-USM subset)",
-        value=False,
-    )
-
-    rows: List[Dict] = []
-    if uploaded is not None:
-        try:
-            df_in = pd.read_csv(uploaded)
-            required = {'img1', 'img2'}
-            if not required.issubset(df_in.columns):
-                st.error(f"CSV must contain columns: {required}. Found: {set(df_in.columns)}")
-                return
-            rows = df_in.to_dict('records')
-            st.success(f"Loaded {len(rows)} pairs from CSV")
-        except Exception as e:
-            st.error(f"Failed to parse CSV: {e}")
+    if register_clicked:
+        if not user_id:
+            st.error("Please provide a User ID.")
+            return
+        if not all(c.isalnum() or c in "-_" for c in user_id):
+            st.error("User ID must be alphanumeric (dashes and underscores allowed).")
+            return
+        if not uploaded_files:
+            st.error("Please upload at least one image.")
             return
 
-    if use_sample:
-        # Auto-pick a few pairs from FV-USM
-        fvusm_root = Path("../data/external/Published_database_FV-USM_Dec2013/1st_session/extractedvein")
-        if fvusm_root.exists():
-            persons = sorted([d for d in fvusm_root.iterdir() if d.is_dir()])[:6]
-            for i, p in enumerate(persons):
-                imgs = sorted(p.glob("*.jpg"))[:2]
-                if len(imgs) >= 2:
-                    rows.append({'img1': str(imgs[0]), 'img2': str(imgs[1]), 'label': 1})
-            # Impostor pairs
-            for i in range(min(3, len(persons) - 1)):
-                p1 = persons[i]
-                p2 = persons[i + 1]
-                imgs1 = sorted(p1.glob("*.jpg"))[:1]
-                imgs2 = sorted(p2.glob("*.jpg"))[:1]
-                if imgs1 and imgs2:
-                    rows.append({'img1': str(imgs1[0]), 'img2': str(imgs2[0]), 'label': 0})
-            st.info(f"Generated {len(rows)} sample pairs")
-        else:
-            st.error("FV-USM not found; cannot generate samples.")
+        # Insert or look up the user record.
+        existing = db.get_user(user_id)
+        if existing is None:
+            if not db.add_user(user_id, full_name):
+                st.error(f"Could not create user `{user_id}`.")
+                return
+        elif full_name and not existing.get("name"):
+            # Update name if it was left empty before.
+            with st.spinner("Updating user info …"):
+                pass  # name update intentionally skipped — schema only stores once
 
-    if rows and st.button("▶️ Run Batch Verification", type="primary"):
-        progress = st.progress(0.0)
-        results = []
-        n = len(rows)
-        for i, row in enumerate(rows):
-            results.extend(_compute_batch_metrics([row], model, threshold, meta['img_size'], device))
-            progress.progress((i + 1) / n)
+        # Convert uploaded files -> PIL images once.
+        images: List[Image.Image] = []
+        for f in uploaded_files:
+            try:
+                img = Image.open(f).copy()
+                images.append(img)
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Could not open `{f.name}`: {exc}")
+                return
+
+        # Extract embeddings.
+        embeddings = _extract_batch(model, images, device, meta["img_size"])
+
+        progress = st.progress(0.0, text="Saving embeddings …")
+        saved = 0
+        for idx, emb in enumerate(embeddings):
+            ok = db.add_embedding(
+                user_id=user_id,
+                embedding=emb,
+                sample_idx=idx,
+                source_path=uploaded_files[idx].name,
+            )
+            saved += int(ok)
+            progress.progress((idx + 1) / len(embeddings))
         progress.empty()
 
-        df_out = pd.DataFrame(results)
-        st.markdown("### 📊 Results")
-        st.dataframe(df_out, use_container_width=True)
-
-        # Metrics summary if labels present
-        if 'gt' in df_out.columns and 'pred' in df_out.columns:
-            valid = df_out.dropna(subset=['gt', 'pred'])
-            if len(valid) > 0:
-                tp = ((valid['gt'] == 1) & (valid['pred'] == 1)).sum()
-                fp = ((valid['gt'] == 0) & (valid['pred'] == 1)).sum()
-                tn = ((valid['gt'] == 0) & (valid['pred'] == 0)).sum()
-                fn = ((valid['gt'] == 1) & (valid['pred'] == 0)).sum()
-                far = fp / max(1, fp + tn)
-                frr = fn / max(1, tp + fn)
-                hter = (far + frr) / 2
-                acc = (tp + tn) / max(1, len(valid))
-
-                c1, c2, c3, c4, c5 = st.columns(5)
-                c1.metric("Accuracy", f"{acc*100:.2f}%")
-                c2.metric("FAR", f"{far*100:.2f}%")
-                c3.metric("FRR", f"{frr*100:.2f}%")
-                c4.metric("HTER", f"{hter*100:.2f}%")
-                c5.metric("Pairs", len(valid))
-
-                # Score distribution by class
-                fig = px.histogram(
-                    valid, x='score', color=valid['gt'].map({1: 'Genuine', 0: 'Impostor'}),
-                    nbins=30, barmode='overlay', opacity=0.7,
-                    title="Score Distribution by Class",
-                )
-                fig.add_vline(x=threshold, line_dash="dash", line_color="black",
-                              annotation_text=f"threshold={threshold:.4f}")
-                st.plotly_chart(fig, use_container_width=True)
-
-        # Download
-        csv_buf = df_out.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            "⬇️ Download Results CSV",
-            csv_buf,
-            file_name=f"verification_results_{threshold:.4f}.csv",
-            mime="text/csv",
+        st.success(
+            f"Enrolled **{saved}** embedding(s) for user `{user_id}` "
+            f"({full_name or 'no name'})."
         )
+        st.balloons()
+
+
+def _identify_probe(
+    model, image: Image.Image, device: str, db: EnrollmentDB, img_size: int, top_k: int = 10
+) -> List[Tuple[str, float, str]]:
+    """Run 1:N identification: compare probe against every enrolled user.
+
+    Returns
+    -------
+    List of (user_id, cosine_score, name) sorted descending by score.
+    """
+    probe_emb = _extract_single(model, image, device, img_size)
+    users = db.list_users()
+    results = []
+    for u in users:
+        uid = u["user_id"]
+        samples = db.get_user_embeddings(uid)
+        if not samples:
+            continue
+        gallery = np.stack([e[1] for e in samples]).mean(axis=0)
+        gallery = gallery / (np.linalg.norm(gallery) + 1e-12)
+        score = float(np.dot(probe_emb, gallery))
+        name = u.get("name") or ""
+        results.append((uid, score, name))
+    results.sort(key=lambda x: x[1], reverse=True)
+    return results[:top_k]
 
 
 # ============================================================================
-# TAB 4: ENROLLMENT
+# IDENTIFY PAGE
 # ============================================================================
-
-def get_db(db_path: str) -> EnrollmentDB:
-    return EnrollmentDB(db_path)
-
-
-def tab_enrollment(db: EnrollmentDB, model, meta, device):
-    st.subheader("📁 User Enrollment")
+def page_identify(model, meta, device, db: EnrollmentDB, stats: dict):
+    st.header("Identify identity")
     st.markdown(
-        "Register a new user by uploading multiple finger vein samples. "
-        "Embeddings are stored in SQLite for later identification."
+        "Upload a finger-vein image and the system will automatically find "
+        "the most similar enrolled identity — no need to pick a user manually."
     )
 
-    with st.sidebar:
-        st.markdown("### 📁 Enrollment")
-        with st.expander("DB Info"):
-            st.json(db.db_info())
-
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        st.markdown("**Register new user**")
-        user_id = st.text_input("User ID", placeholder="e.g. person_001", key="enr_userid")
-        name = st.text_input("Name (optional)", key="enr_name")
-        uploaded_files = st.file_uploader(
-            "Upload sample images (≥3 recommended)",
-            type=["png", "jpg", "jpeg", "bmp"],
-            accept_multiple_files=True,
-            key="enr_upload",
+    db_users = db.list_users()
+    if not db_users:
+        st.warning(
+            "No users enrolled yet. Head to the **Register** page to add one first."
         )
+        return
 
-        if uploaded_files:
-            st.write(f"Selected: {len(uploaded_files)} images")
+    stats = load_eval_stats()
+    threshold = _compute_decision_threshold(stats)
 
-        enroll_btn = st.button("💾 Enroll User", type="primary", disabled=not (user_id and uploaded_files))
-
-        if enroll_btn:
-            if not user_id.strip():
-                st.error("User ID required.")
-            else:
-                if db.add_user(user_id.strip(), name.strip()):
-                    st.success(f"Created user '{user_id}'.")
-                else:
-                    st.info(f"User '{user_id}' already exists — adding new samples.")
-
-                saved = 0
-                failed = 0
-                tmp_paths = []
-                try:
-                    for i, uf in enumerate(uploaded_files):
-                        img = load_uploaded_image(uf)
-                        if img is None:
-                            failed += 1
-                            continue
-                        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t:
-                            img.save(t.name)
-                            tmp_paths.append(t.name)
-                        t1 = preprocess_image(t.name, meta['img_size'], device)
-                        emb = extract_embedding(model, t1)
-                        ok = db.add_embedding(
-                            user_id.strip(),
-                            emb,
-                            sample_idx=i,
-                            source_path=uf.name,
-                        )
-                        if ok:
-                            saved += 1
-                        else:
-                            failed += 1
-                finally:
-                    for p in tmp_paths:
-                        Path(p).unlink(missing_ok=True)
-
-                st.success(f"Enrolled {saved} samples (failed: {failed}).")
-                st.rerun()
-
-    with col2:
-        st.markdown("**Enrolled Users**")
-        users = db.list_users()
-        if not users:
-            st.info("No users enrolled yet.")
-        else:
-            df_users = pd.DataFrame(users)
-            st.dataframe(df_users, use_container_width=True)
-
-            # Manage existing users
-            st.markdown("---")
-            st.markdown("**Manage**")
-            user_to_delete = st.selectbox(
-                "Select user to delete",
-                options=[u['user_id'] for u in users],
-                key="enr_delete_select",
-            )
-            if st.button("🗑️ Delete Selected User"):
-                if db.delete_user(user_to_delete):
-                    st.success(f"Deleted '{user_to_delete}'.")
-                    st.rerun()
-                else:
-                    st.error("Delete failed.")
-
-            if st.button("⚠️ Clear All Users"):
-                db.clear_all()
-                st.success("Cleared all users.")
-                st.rerun()
-
-            # Inspect embeddings for one user
-            st.markdown("---")
-            inspect_user = st.selectbox(
-                "Inspect user embeddings",
-                options=[u['user_id'] for u in users],
-                key="enr_inspect",
-            )
-            embs = db.get_user_embeddings(inspect_user)
-            if embs:
-                st.write(f"{inspect_user}: {len(embs)} samples, dim={len(embs[0][1])}")
-                arr = np.stack([e[1] for e in embs])
-                st.dataframe(pd.DataFrame(arr).describe().T, use_container_width=True)
-
-
-# ============================================================================
-# TAB 5: IDENTIFICATION (1:N)
-# ============================================================================
-
-def tab_identification(db: EnrollmentDB, model, meta, device, threshold: float):
-    st.subheader("🎯 Identification (1:N Matching)")
-    st.markdown(
-        "Upload a query finger vein image and find the closest enrolled users "
-        "by cosine similarity."
+    # ── Upload area ───────────────────────────────────────────────────────
+    uploaded = st.file_uploader(
+        "Upload probe image",
+        type=["png", "jpg", "jpeg", "bmp", "tif", "tiff"],
+        accept_multiple_files=False,
+        key="identify_uploader",
     )
 
+    if not uploaded:
+        st.info("⬆️ Upload an image to start identification.")
+        return
+
+    image = Image.open(uploaded)
+    st.image(image, caption=f"Probe: {uploaded.name}", width=360)
+
+    # ── Run identification ───────────────────────────────────────────────
+    with st.spinner("Comparing against all enrolled users …"):
+        results = _identify_probe(model, image, device, db, meta["img_size"])
+
+    if not results:
+        st.error("No enrolled users found in the database.")
+        return
+
+    best_uid, best_score, best_name = results[0]
+    is_match = best_score >= threshold
+
+    # ── Top-1 verdict ────────────────────────────────────────────────────
+    if is_match:
+        verdict_label = "IDENTITY FOUND"
+        pill_color = "#4ECDC4"
+    else:
+        verdict_label = "NO MATCH FOUND"
+        pill_color = "#FF6B6B"
+
+    st.markdown("---")
+    st.markdown("### 🔍 Top result")
+
+    col_left, col_right = st.columns([1, 2])
+
+    with col_left:
+        st.markdown(
+            f"### {'✅' if is_match else '❌'}  "
+            f"<span style='color:{pill_color};font-size:1.4em'>{verdict_label}</span>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"**{best_uid}**" + (f"  —  {best_name}" if best_name else ""))
+        user_rec = db.get_user(best_uid)
+        st.markdown(f"Samples: {user_rec.get('num_samples', 0) if user_rec else '?'}")
+
+    with col_right:
+        st.markdown(
+            _format_metric_pill("Best cosine score", f"{best_score:.4f}", pill_color)
+            + _format_metric_pill("Threshold", f"{threshold:.4f}", "#888")
+            + _format_metric_pill("Verdict", verdict_label, pill_color),
+            unsafe_allow_html=True,
+        )
+        ratio = min(max((best_score + 1) / 2, 0.0), 1.0)
+        bar_w = int(ratio * 300)
+        thresh_x = int((threshold + 1) / 2 * 300)
+        st.markdown(
+            f"<div style='background:#eee;border-radius:6px;height:22px;width:300px;"
+            f"position:relative;'>"
+            f"<div style='background:{pill_color};height:100%;border-radius:6px;"
+            f"width:{bar_w}px;transition:width .3s;'></div>"
+            f"<div style='position:absolute;top:0;left:{thresh_x}px;"
+            f"width:2px;height:22px;background:#333;' title='threshold'></div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    # ── Ranked list ──────────────────────────────────────────────────────
+    with st.expander("📋  View all ranked results", expanded=True):
+        header_cols = st.columns([3, 1, 1, 1])
+        header_cols[0].markdown("**User**")
+        header_cols[1].markdown("**Score**")
+        header_cols[2].markdown("**vs Threshold**")
+        header_cols[3].markdown("**Verdict**")
+        st.markdown("---")
+
+        for rank, (uid, score, name) in enumerate(results, 1):
+            above = score >= threshold
+            row_cols = st.columns([3, 1, 1, 1])
+            label = f"**{uid}**" + (f"  —  {name}" if name else "")
+            row_cols[0].markdown(label)
+            row_cols[1].markdown(f"`{score:+.4f}`")
+            diff = score - threshold
+            diff_str = f"{diff:+.4f}"
+            row_cols[2].markdown(diff_str)
+            row_cols[3].markdown(
+                f"{'✅ Match' if above else '❌ Below'}"
+            )
+
+    # ── Reference stats ───────────────────────────────────────────────────
+    if stats:
+        st.markdown("---")
+        st.markdown("#### Reference stats from offline evaluation")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("EER", f"{stats.get('eer_percent', 0):.3f}%")
+        c2.metric("Intra-class cosine", f"{stats.get('pos_mean', 0):.3f} ± {stats.get('pos_std', 0):.3f}")
+        c3.metric("Inter-class cosine", f"{stats.get('neg_mean', 0):.3f} ± {stats.get('neg_std', 0):.3f}")
+        c4.metric("Margin", f"{stats.get('margin', 0):.3f}")
+
+
+def _format_user_label(db: EnrollmentDB, user_id: str) -> str:
+    user = db.get_user(user_id)
+    if not user:
+        return user_id
+    name = user.get("name") or ""
+    samples = user.get("num_samples", 0)
+    label = f"{user_id}"
+    if name:
+        label = f"{user_id} — {name}"
+    label += f"  ({samples} samples)"
+    return label
+
+
+# ============================================================================
+# DATABASE PAGE
+# ============================================================================
+def page_database(db: EnrollmentDB):
+    st.header("Enrolled users database")
     users = db.list_users()
     if not users:
-        st.warning("No enrolled users. Go to Enrollment tab first.")
+        st.info("No users yet. Switch to the **Register** tab to enroll one.")
         return
 
-    # Build gallery: {user_id: mean_embedding}
-    gallery = {}
+    rows = []
     for u in users:
-        embs = db.get_user_embeddings(u['user_id'])
-        if embs:
-            arr = np.stack([e[1] for e in embs])
-            # Mean + re-normalize for robust center
-            mean = arr.mean(axis=0)
-            mean = mean / (np.linalg.norm(mean) + 1e-12)
-            gallery[u['user_id']] = mean
+        samples = db.get_user_embeddings(u["user_id"])
+        rows.append(
+            {
+                "User ID": u["user_id"],
+                "Name": u.get("name") or "—",
+                "Samples": u.get("num_samples", len(samples)),
+                "Created at": u.get("created_at", ""),
+                "Source files": ", ".join(s[2] for s in samples) or "—",
+            }
+        )
+    st.dataframe(rows, use_container_width=True, hide_index=True)
 
-    if not gallery:
-        st.warning("Enrolled users have no embeddings.")
-        return
-
-    st.markdown(f"**Gallery**: {len(gallery)} users")
-
-    col1, col2 = st.columns([1, 1])
+    st.markdown("---")
+    st.markdown("### Danger zone")
+    col1, col2 = st.columns([3, 1])
     with col1:
-        uploaded = st.file_uploader(
-            "Query image",
-            type=["png", "jpg", "jpeg", "bmp"],
-            key="ident_query",
+        target = st.selectbox(
+            "Delete user",
+            options=["—"] + [u["user_id"] for u in users],
         )
-        if uploaded:
-            img = load_uploaded_image(uploaded)
-            if img:
-                render_image_with_caption(img, f"Query — {uploaded.name}")
-        top_k = st.slider("Top-K", min_value=1, max_value=min(10, len(gallery)), value=3)
-
-    if uploaded:
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t:
-            img = load_uploaded_image(uploaded)
-            img.save(t.name)
-            tmp = t.name
-        try:
-            t1 = preprocess_image(tmp, meta['img_size'], device)
-            query_emb = extract_embedding(model, t1)
-
-            scores = []
-            for uid, gallery_emb in gallery.items():
-                score = float(np.dot(query_emb, gallery_emb))
-                scores.append((uid, score))
-            scores.sort(key=lambda x: x[1], reverse=True)
-
-            top = scores[:top_k]
-
-            with col2:
-                st.markdown("**Top Matches**")
-                df_scores = pd.DataFrame([
-                    {'User ID': uid, 'Similarity': round(s, 6),
-                     'Verdict': '✓ MATCH' if s > threshold else '✗ NO MATCH'}
-                    for uid, s in top
-                ])
-                st.dataframe(df_scores, use_container_width=True)
-
-                # Bar chart of top-K scores
-                fig = px.bar(
-                    df_scores, x='User ID', y='Similarity',
-                    color='Verdict',
-                    color_discrete_map={'✓ MATCH': '#2ECC71', '✗ NO MATCH': '#E74C3C'},
-                    title="Top-K Similarity Scores",
-                )
-                fig.add_hline(y=threshold, line_dash="dash", line_color="black",
-                              annotation_text=f"threshold={threshold:.4f}")
-                st.plotly_chart(fig, use_container_width=True)
-
-            # Best match verdict
-            best_uid, best_score = top[0]
-            st.markdown("---")
-            if best_score > threshold:
-                st.success(
-                    f"### ✅ Best Match: **{best_uid}** "
-                    f"(similarity {best_score:.4f} > threshold {threshold:.4f})"
-                )
-            else:
-                st.error(
-                    f"### ❌ No Confident Match — "
-                    f"Best: {best_uid} ({best_score:.4f}) ≤ threshold {threshold:.4f}"
-                )
-
-            # Score distribution
-            all_scores = [s for _, s in scores]
-            fig2 = go.Figure()
-            fig2.add_trace(go.Histogram(
-                x=all_scores, nbinsx=20, name='Gallery scores', marker_color='#4ECDC4',
-            ))
-            fig2.add_trace(go.Scatter(
-                x=[best_score], y=[0], mode='markers',
-                marker=dict(size=18, color='red', symbol='star'),
-                name='Query', showlegend=True,
-            ))
-            fig2.add_vline(x=threshold, line_dash="dash", line_color="black",
-                           annotation_text=f"threshold={threshold:.4f}")
-            fig2.update_layout(
-                title="Gallery Score Distribution",
-                xaxis_title="Cosine Similarity",
-                yaxis_title="# Users",
-                template="plotly_white",
-                height=350,
-            )
-            st.plotly_chart(fig2, use_container_width=True)
-        finally:
-            Path(tmp).unlink(missing_ok=True)
-
-
-# ============================================================================
-# MAIN APP
-# ============================================================================
-
-def main():
-    st.title("🩸 Finger Vein Recognition — End-to-End App")
-    st.caption("Upload images, verify, enroll, identify. Built on ResNet18 + ArcFace.")
-    st.markdown("---")
-
-    # ----------------------------------------------------------------
-    # Sidebar: model + threshold + DB path
-    # ----------------------------------------------------------------
-    with st.sidebar:
-        st.markdown("## ⚙️ Global Settings")
-
-        results_dir = st.text_input("Results dir", value=DEFAULT_RESULTS_DIR, key="results_dir")
-        ckpts = discover_checkpoints(results_dir)
-        if not ckpts:
-            st.error("No checkpoints found.")
-            ckpt_path = st.text_input("Checkpoint path", value=DEFAULT_CHECKPOINT)
+    with col2:
+        confirm = st.button("Delete user", type="secondary")
+    if confirm and target != "—":
+        if db.delete_user(target):
+            st.success(f"Deleted user `{target}`.")
+            st.rerun()
         else:
-            # Put default expD at top if exists
-            sorted_keys = sorted(ckpts.keys(), key=lambda k: (0 if 'expD' in k else 1, k))
-            default_idx = 0
-            ckpt_label = st.selectbox("Checkpoint", sorted_keys, index=default_idx)
-            ckpt_path = ckpts[ckpt_label]
+            st.error(f"Could not delete `{target}`.")
 
-        # Load model (cached)
-        try:
-            model, meta, device = get_cached_model(ckpt_path)
-            st.success(f"Model loaded: dim={meta['embedding_dim']}, classes={meta['num_classes']}")
-            if meta.get('threshold') is not None:
-                st.caption(f"Trained threshold: {meta['threshold']:.4f}")
-            if meta.get('eer') is not None:
-                st.caption(f"Trained EER: {meta['eer']*100:.2f}%")
-        except Exception as e:
-            st.error(f"Failed to load checkpoint: {e}")
-            st.stop()
+    with st.expander("Database info"):
+        info = db.db_info()
+        st.json(info)
 
-        default_threshold = float(meta.get('threshold') or 0.95)
-        threshold = st.slider(
-            "Decision threshold",
-            min_value=0.0, max_value=1.0, value=default_threshold, step=0.01,
-            help="Cosine similarity > threshold → GENUINE.",
-        )
 
-        db_path = st.text_input("Enrollment DB path", value=DEFAULT_DB_PATH)
-        db = get_db(db_path)
+# ============================================================================
+# ABOUT PAGE
+# ============================================================================
+def page_about(stats: dict):
+    st.header("About this demo")
+    st.markdown(
+        """
+        This is a research prototype built on top of the existing
+        **Finger-Vein Recognition** training pipeline.
 
-    # ----------------------------------------------------------------
-    # Tabs
-    # ----------------------------------------------------------------
-    tabs = st.tabs([
-        "📊 Training Dashboard",
-        "🔍 Single Pair Verify",
-        "📋 Batch Verify",
-        "📁 Enrollment",
-        "🎯 Identification",
-    ])
+        **Pipeline**
+        1. Pre-trained `ResNet-18` backbone with the first conv layer
+           adapted to single-channel grayscale input (128x128).
+        2. Embedding projection to 128-D, followed by `BatchNorm1d`.
+        3. Trained with `ArcFace` loss (scale 30, margin 0.5) on
+           the FV-USM finger-vein dataset (492 classes, 2 sessions).
+        4. Embeddings are L2-normalised so that cosine similarity is
+           the same as a dot product.
 
-    with tabs[0]:
-        tab_training_dashboard(results_dir)
+        **Run**
+        ```
+        streamlit run src/e2e_app.py
+        ```
+        """
+    )
 
-    with tabs[1]:
-        tab_single_pair(model, meta, device, threshold)
+    if stats:
+        st.markdown("### Latest offline evaluation")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("EER", f"{stats.get('eer_percent', 0):.3f}%")
+        c2.metric("Intra-class cosine", f"{stats.get('pos_mean', 0):.3f}")
+        c3.metric("Inter-class cosine", f"{stats.get('neg_mean', 0):.3f}")
+        c4.metric("Margin", f"{stats.get('margin', 0):.3f}")
 
-    with tabs[2]:
-        tab_batch_verify(model, meta, device, threshold)
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Test classes", stats.get("n_classes", "?"))
+        c6.metric("Test images", stats.get("n_test_images", "?"))
+        c7.metric("Checkpoint epoch", stats.get("checkpoint_epoch", "?"))
 
-    with tabs[3]:
-        tab_enrollment(db, model, meta, device)
 
-    with tabs[4]:
-        tab_identification(db, model, meta, device, threshold)
+# ============================================================================
+# MAIN
+# ============================================================================
+def main():
+    sidebar = render_sidebar()
+    db: EnrollmentDB = sidebar["db"]
+    checkpoint_path = sidebar["checkpoint"]
 
-    st.markdown("---")
-    st.caption("E2E Finger Vein App · Built with Streamlit · ResNet18 + ArcFace")
+    page = st.sidebar.radio(
+        "Navigate",
+        ["Register", "Identify", "Database", "About"],
+        index=1,
+    )
+
+    # Load the model once and share it across pages.
+    model, meta, device = load_model(checkpoint_path)
+    stats = load_eval_stats()
+
+    if page == "Register":
+        page_register(model, meta, device, db)
+    elif page == "Identify":
+        page_identify(model, meta, device, db, stats)
+    elif page == "Database":
+        page_database(db)
+    elif page == "About":
+        page_about(stats)
 
 
 if __name__ == "__main__":

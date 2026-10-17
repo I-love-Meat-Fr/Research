@@ -132,3 +132,77 @@ After running, `results/{model}/results.json` contains:
 2. Download full FingerVeinSyn-5M dataset
 3. Use original architectures (not simplified backbones)
 4. Add ablation studies (data size, architecture, pretrain strategy)
+
+---
+
+## Streamlit Demo App (`src/e2e_app.py`)
+
+An end-to-end GUI that wraps the trained ResNet-18 + ArcFace backbone in a
+browser-friendly research demo. Use it to:
+
+* **Register** one or more users with multiple finger-vein samples.
+* **Verify** a probe image against a claimed identity (1:1 matching) using
+  cosine similarity against a per-user centroid gallery.
+* **Browse** the SQLite enrollment database.
+* **Inspect** the latest offline evaluation metrics (EER, intra/inter
+  cosine means, margin, etc.).
+
+### Run
+
+```bash
+streamlit run src/e2e_app.py \
+    --server.headless true \
+    --server.port 8501 \
+    --server.address 127.0.0.1
+```
+
+Open `http://127.0.0.1:8501/` in your browser.
+
+### Required Artifacts
+
+The app expects the following files (all created by the training pipeline):
+
+| Path | Purpose |
+|------|---------|
+| `src/results/fvusm_resnet18_arcface_v1/best.pth` | Trained checkpoint (ResNet-18 encoder + ArcFace head) |
+| `src/results/fvusm_resnet18_arcface_v1/eval_results.json` | Offline EER / cosine stats used for the decision threshold |
+| `src/results/enrollment.db` | SQLite store for enrolled users + embeddings (created on first save) |
+
+### How Verification Works
+
+1. **Preprocess** the probe image: grayscale → resize to 128×128 →
+   `(x − 0.5) / 0.5` (identical to the training preprocessing).
+2. **Embed** with the ResNet-18 backbone (128-D, L2-normalised — matches
+   the gallery pipeline used by `compute_eer` in `train_fvusm.py`).
+3. **Compare** the probe embedding to the user's centroid gallery using
+   cosine similarity (dot product on unit vectors).
+4. **Decide** by comparing the score to the threshold derived from
+   `eval_results.json` — specifically the midpoint of
+   `pos_mean` (intra-class) and `neg_mean` (inter-class) cosine means,
+   which approximates the Equal-Error-Rate operating point.
+
+For the current `fvusm_resnet18_arcface_v1` checkpoint
+(`EER ≈ 0.108 %`) the threshold is ≈ **0.515**.
+
+### Architecture Alignment
+
+The model class `ResNet18Backbone` inside `e2e_app.py` mirrors the
+backbone defined in `train_fvusm.py` and `eval_fvusm.py`
+exactly: `backbone` (an `nn.Sequential` of conv blocks) → `embed`
+(Linear 512→128) → `bn` (BatchNorm1d). The checkpoint stores these
+under the top-level key `ckpt['backbone']`; the separate ArcFace head
+under `ckpt['head']` is intentionally **not** loaded because the demo
+only compares embeddings, never classifies.
+
+If you retrain and change the architecture, update both
+`ResNet18Backbone` and the `load_model` function to match.
+
+### Known Quirks
+
+* `meta['threshold']` in the loaded checkpoint is the raw EER value
+  (≈ 0.001) and is therefore *not* used as the decision boundary; the
+  app prefers the much more interpretable `(pos_mean + neg_mean) / 2`
+  from the eval JSON.
+* The `@st.cache_resource` decorator means the model is loaded once per
+  Streamlit server lifetime. To reload after a checkpoint change, restart
+  the server (the cache invalidates only on source-file changes).
